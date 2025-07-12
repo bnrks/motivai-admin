@@ -1,21 +1,81 @@
 "use client";
 
-import { MapPin, Users, DollarSign, Search, Filter, Plus } from "lucide-react";
+import {
+  MapPin,
+  Users,
+  DollarSign,
+  Search,
+  Filter,
+  Plus,
+  Edit2,
+  X,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import {
   getAllGyms,
   getActiveGyms,
   deleteGym,
+  addGym,
+  updateGym,
 } from "../firebase/gymOperations.js";
+import LocationPicker from "../components/LocationPicker.jsx";
 
 export default function GymOperations() {
   const [gyms, setGyms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingGym, setEditingGym] = useState(null);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState(null);
+
+  // Form states
+  const [formData, setFormData] = useState({
+    name: "",
+    location: { latitude: "", longitude: "" },
+    capacity: "",
+    occupancy: "",
+    price: "",
+    type: "gym",
+  });
+
   useEffect(() => {
     fetchGyms();
   }, []);
+
+  // Koordinatları şehir ve ilçe bilgisine çeviren fonksiyon
+  const getLocationFromCoordinates = async (lat, lon) => {
+    // Server-side rendering kontrolü
+    if (typeof window === "undefined") {
+      return `${lat}, ${lon}`; // Server tarafında sadece koordinatları döndür
+    }
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=tr`
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Konum verisi:", data);
+
+      // display_name varsa onu kullan
+      if (data.display_name) {
+        return data.display_name;
+      }
+
+      // Fallback olarak koordinatları göster
+      return `${lat}, ${lon}`;
+    } catch (error) {
+      console.error("Konum bilgisi alınırken hata:", error);
+      return `${lat}, ${lon}`; // Hata durumunda koordinatları göster
+    }
+  };
 
   async function fetchGyms() {
     try {
@@ -23,31 +83,56 @@ export default function GymOperations() {
       const allGyms = await getAllGyms();
       console.log("Tüm Spor Salonları:", allGyms);
 
-      // Firebase GeoPoint verilerini string'e çevir
-      const processedGyms = allGyms.map((gym) => ({
-        ...gym,
-        location:
-          gym.location &&
-          typeof gym.location === "object" &&
-          gym.location.latitude
-            ? `${gym.location.latitude}, ${gym.location.longitude}`
-            : gym.location &&
-              typeof gym.location === "object" &&
-              gym.location._lat
-            ? `${gym.location._lat}, ${gym.location._long}`
-            : gym.location || gym.address || "Adres belirtilmemiş",
-        address:
-          gym.address && typeof gym.address === "object" && gym.address.latitude
-            ? `${gym.address.latitude}, ${gym.address.longitude}`
-            : gym.address && typeof gym.address === "object" && gym.address._lat
-            ? `${gym.address._lat}, ${gym.address._long}`
-            : gym.address || "Adres belirtilmemiş",
-        price:
-          gym.prices && gym.prices.length > 0
-            ? gym.prices[0].amount
-            : gym.price,
-        occupancy: gym.occupancy || gym["occupancy "] || 0, // "occupancy " (boşluklu) field'ı da kontrol et
-      }));
+      // Firebase GeoPoint verilerini işle ve konum bilgilerini al
+      // Rate limiting için istekleri sıralı olarak gönder
+      const processedGyms = [];
+
+      for (let i = 0; i < allGyms.length; i++) {
+        const gym = allGyms[i];
+        let locationText = "Adres belirtilmemiş";
+
+        console.log(
+          `Konum bilgisi alınıyor: ${gym.name || `Gym ${i + 1}`} (${i + 1}/${
+            allGyms.length
+          })`
+        );
+
+        // Koordinat bilgisi varsa şehir/ilçe bilgisini al
+        if (gym.location && typeof gym.location === "object") {
+          if (gym.location.latitude && gym.location.longitude) {
+            locationText = await getLocationFromCoordinates(
+              gym.location.latitude,
+              gym.location.longitude
+            );
+          } else if (gym.location._lat && gym.location._long) {
+            locationText = await getLocationFromCoordinates(
+              gym.location._lat,
+              gym.location._long
+            );
+          }
+        } else if (typeof gym.location === "string") {
+          locationText = gym.location;
+        } else if (gym.address && typeof gym.address === "string") {
+          locationText = gym.address;
+        }
+
+        const processedGym = {
+          ...gym,
+          location: locationText,
+          price:
+            gym.prices && gym.prices.length > 0
+              ? gym.prices[0].amount
+              : gym.price,
+          occupancy: gym.occupancy || gym["occupancy "] || 0,
+        };
+
+        processedGyms.push(processedGym);
+
+        // Her istek arasında 1 saniye bekle (son gym hariç)
+        if (i < allGyms.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 75));
+        }
+      }
 
       setGyms(processedGyms);
       setError(null);
@@ -73,6 +158,147 @@ export default function GymOperations() {
       }
     }
   }
+
+  // Modal functions
+  const openAddModal = () => {
+    setEditingGym(null);
+    setFormData({
+      name: "",
+      location: { latitude: "", longitude: "" },
+      capacity: "",
+      occupancy: "",
+      price: "",
+      type: "gym",
+    });
+    setModalError(null);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (gym) => {
+    setEditingGym(gym);
+
+    // Mevcut koordinatları al
+    let lat = "";
+    let lng = "";
+
+    if (gym.location && typeof gym.location === "object") {
+      if (gym.location.latitude && gym.location.longitude) {
+        lat = gym.location.latitude.toString();
+        lng = gym.location.longitude.toString();
+      } else if (gym.location._lat && gym.location._long) {
+        lat = gym.location._lat.toString();
+        lng = gym.location._long.toString();
+      }
+    }
+
+    setFormData({
+      name: gym.name || "",
+      location: { latitude: lat, longitude: lng },
+      capacity: gym.capacity || "",
+      occupancy: gym.occupancy || gym["occupancy "] || "",
+      price: gym.prices?.[0]?.amount || gym.price || "",
+      type: gym.type || "gym",
+    });
+    setModalError(null);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingGym(null);
+    setModalError(null);
+    setFormData({
+      name: "",
+      location: { latitude: "", longitude: "" },
+      capacity: "",
+      occupancy: "",
+      price: "",
+      type: "gym",
+    });
+  };
+
+  const handleFormChange = (field, value) => {
+    if (field.includes(".")) {
+      const [parent, child] = field.split(".");
+      setFormData((prev) => ({
+        ...prev,
+        [parent]: {
+          ...prev[parent],
+          [child]: value,
+        },
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
+    }
+  };
+
+  const handleLocationChange = (lat, lng) => {
+    setFormData((prev) => ({
+      ...prev,
+      location: {
+        latitude: lat.toString(),
+        longitude: lng.toString(),
+      },
+    }));
+  };
+
+  const handleSaveGym = async () => {
+    try {
+      // Validation
+      if (!formData.name.trim()) {
+        setModalError("Spor salonu adı zorunludur");
+        return;
+      }
+
+      if (!formData.location.latitude || !formData.location.longitude) {
+        setModalError("Koordinat bilgileri zorunludur");
+        return;
+      }
+
+      setModalLoading(true);
+      setModalError(null);
+
+      const gymData = {
+        name: formData.name.trim(),
+        location: {
+          latitude: parseFloat(formData.location.latitude),
+          longitude: parseFloat(formData.location.longitude),
+          type: "firestore/geoPoint/1.0",
+        },
+        capacity: parseInt(formData.capacity) || 0,
+        "occupancy ": parseInt(formData.occupancy) || 0,
+        prices: [
+          {
+            title: "aylik",
+            amount: parseInt(formData.price) || 0,
+          },
+        ],
+        type: formData.type,
+      };
+
+      if (editingGym) {
+        // Güncelleme
+        await updateGym(editingGym.id, gymData);
+        console.log("Spor salonu başarıyla güncellendi");
+      } else {
+        // Yeni ekleme
+        await addGym(gymData);
+        console.log("Spor salonu başarıyla eklendi");
+      }
+
+      // Listeyi yenile
+      await fetchGyms();
+      closeModal();
+    } catch (error) {
+      console.error("Spor salonu kaydedilirken hata:", error);
+      setModalError("İşlem sırasında bir hata oluştu: " + error.message);
+    } finally {
+      setModalLoading(false);
+    }
+  };
 
   const getOccupancyPercentage = (occupancy, capacity) => {
     return Math.round((occupancy / capacity) * 100);
@@ -116,7 +342,10 @@ export default function GymOperations() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Gym İşlemleri</h1>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2">
+        <button
+          onClick={openAddModal}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+        >
           <Plus className="h-4 w-4" />
           <span>Yeni Salon</span>
         </button>
@@ -143,6 +372,9 @@ export default function GymOperations() {
           {loading ? (
             <div className="p-8 text-center">
               <div className="text-lg">Spor salonları yükleniyor...</div>
+              <div className="text-sm text-gray-500 mt-2">
+                Konum bilgileri API'den alınıyor, lütfen bekleyiniz...
+              </div>
             </div>
           ) : error ? (
             <div className="p-8 text-center text-red-600">
@@ -211,11 +443,7 @@ export default function GymOperations() {
                         <div className="flex items-center text-sm text-gray-900">
                           <MapPin className="h-4 w-4 text-gray-400 mr-2" />
                           <span className="max-w-xs truncate">
-                            {typeof gym.location === "string"
-                              ? gym.location
-                              : typeof gym.address === "string"
-                              ? gym.address
-                              : "Adres belirtilmemiş"}
+                            {gym.location || "Adres belirtilmemiş"}
                           </span>
                         </div>
                       </td>
@@ -261,7 +489,10 @@ export default function GymOperations() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button className="text-blue-600 hover:text-blue-900 mr-4">
+                        <button
+                          onClick={() => openEditModal(gym)}
+                          className="text-blue-600 hover:text-blue-900 mr-4"
+                        >
                           Düzenle
                         </button>
                         <button
@@ -279,6 +510,139 @@ export default function GymOperations() {
           )}
         </div>
       </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">
+                {editingGym ? "Spor Salonu Düzenle" : "Yeni Spor Salonu"}
+              </h2>
+              <button
+                onClick={closeModal}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {modalError && (
+              <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                {modalError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Spor Salonu Adı *
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => handleFormChange("name", e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Spor salonu adını girin"
+                />
+              </div>
+
+              {/* Harita Bileşeni */}
+              <div>
+                <LocationPicker
+                  latitude={formData.location.latitude}
+                  longitude={formData.location.longitude}
+                  onLocationChange={handleLocationChange}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Kapasite
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.capacity}
+                    onChange={(e) =>
+                      handleFormChange("capacity", e.target.value)
+                    }
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Mevcut Doluluk
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.occupancy}
+                    onChange={(e) =>
+                      handleFormChange("occupancy", e.target.value)
+                    }
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="50"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Aylık Fiyat (TL)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.price}
+                    onChange={(e) => handleFormChange("price", e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tip
+                  </label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => handleFormChange("type", e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="gym">Spor Salonu</option>
+                    <option value="fitness">Fitness</option>
+                    <option value="crossfit">CrossFit</option>
+                    <option value="yoga">Yoga</option>
+                    <option value="pilates">Pilates</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={closeModal}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                disabled={modalLoading}
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleSaveGym}
+                disabled={modalLoading}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {modalLoading
+                  ? "Kaydediliyor..."
+                  : editingGym
+                  ? "Güncelle"
+                  : "Ekle"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

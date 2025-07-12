@@ -7,11 +7,16 @@ import {
   getActiveUsers,
 } from "../firebase/userOperations.js";
 import { useState, useEffect } from "react";
+import UserDetailModal from "../components/UserDetailModal.jsx";
 
 export default function UserOperations() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Modal states
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -31,6 +36,17 @@ export default function UserOperations() {
       setLoading(false);
     }
   }
+
+  // Modal functions
+  const openDetailModal = (user) => {
+    setSelectedUser(user);
+    setIsDetailModalOpen(true);
+  };
+
+  const closeDetailModal = () => {
+    setSelectedUser(null);
+    setIsDetailModalOpen(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -173,6 +189,12 @@ export default function UserOperations() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <button 
+                        onClick={() => openDetailModal(user)}
+                        className="text-green-600 hover:text-green-900 mr-4"
+                      >
+                        Detay
+                      </button>
                       <button className="text-blue-600 hover:text-blue-900 mr-4">
                         Düzenle
                       </button>
@@ -187,6 +209,13 @@ export default function UserOperations() {
           )}
         </div>
       </div>
+
+      {/* User Detail Modal */}
+      <UserDetailModal 
+        user={selectedUser}
+        isOpen={isDetailModalOpen}
+        onClose={closeDetailModal}
+      />
     </div>
   );
 }

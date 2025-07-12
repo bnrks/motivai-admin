@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { User, Lock, Eye, EyeOff } from "lucide-react";
+import { authenticateAdmin } from "../firebase/adminOperations.js";
 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState("");
@@ -15,17 +16,25 @@ export default function Login({ onLogin }) {
     setError("");
     setIsLoading(true);
 
-    // Basit authentication kontrolü (gerçek uygulamada backend'den gelecek)
-    if (username === "admin" && password === "admin") {
-      setTimeout(() => {
-        onLogin({ username, role: "admin" });
-        setIsLoading(false);
-      }, 1000);
-    } else {
-      setTimeout(() => {
-        setError("Kullanıcı adı veya şifre hatalı!");
-        setIsLoading(false);
-      }, 1000);
+    try {
+      console.log("Giriş işlemi başlatılıyor...", { username });
+
+      // Firebase'den admin authentication
+      const authResult = await authenticateAdmin(username, password);
+
+      if (authResult.success) {
+        console.log("Giriş başarılı:", authResult.user);
+        // Başarılı giriş - user bilgilerini parent component'e gönder
+        onLogin(authResult.user);
+      } else {
+        console.log("Giriş hatası:", authResult.error);
+        setError(authResult.error || "Giriş işlemi başarısız!");
+      }
+    } catch (error) {
+      console.error("Giriş işlemi sırasında beklenmeyen hata:", error);
+      setError("Bağlantı hatası! Lütfen tekrar deneyin.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -34,11 +43,16 @@ export default function Login({ onLogin }) {
       <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-2xl">A</span>
+          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-blue-200">
+            <img
+              src="/icon.png"
+              alt="MotivAI Logo"
+              className="w-12 h-12 object-contain"
+            />
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">Admin Panel</h1>
-          <p className="text-gray-600 mt-2">Gym Yönetim Sistemi</p>
+          <h1 className="text-2xl font-bold text-gray-800">
+            MotivAI Admin Paneli
+          </h1>
         </div>
 
         {/* Login Form */}
@@ -109,17 +123,6 @@ export default function Login({ onLogin }) {
             )}
           </button>
         </form>
-
-        {/* Demo Credentials */}
-        <div className="mt-6 p-4 bg-gray-100 rounded-lg">
-          <p className="text-sm text-gray-600 text-center">
-            <strong>Demo Giriş:</strong>
-            <br />
-            Kullanıcı: admin
-            <br />
-            Şifre: 123456
-          </p>
-        </div>
       </div>
     </div>
   );
