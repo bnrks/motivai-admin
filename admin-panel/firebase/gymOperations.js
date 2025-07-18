@@ -11,6 +11,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  GeoPoint,
 } from "firebase/firestore";
 
 // Tüm spor salonlarını getir
@@ -138,8 +139,22 @@ export const searchGymsByName = async (name) => {
 export const addGym = async (gymData) => {
   try {
     const gymsCollection = collection(db, "gyms");
+
+    // Location verisini GeoPoint'e çevir
+    let processedGymData = { ...gymData };
+    if (
+      gymData.location &&
+      gymData.location.latitude &&
+      gymData.location.longitude
+    ) {
+      processedGymData.location = new GeoPoint(
+        parseFloat(gymData.location.latitude),
+        parseFloat(gymData.location.longitude)
+      );
+    }
+
     const docRef = await addDoc(gymsCollection, {
-      ...gymData,
+      ...processedGymData,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -154,8 +169,22 @@ export const addGym = async (gymData) => {
 export const updateGym = async (gymId, gymData) => {
   try {
     const gymDoc = doc(db, "gyms", gymId);
+
+    // Location verisini GeoPoint'e çevir
+    let processedGymData = { ...gymData };
+    if (
+      gymData.location &&
+      gymData.location.latitude &&
+      gymData.location.longitude
+    ) {
+      processedGymData.location = new GeoPoint(
+        parseFloat(gymData.location.latitude),
+        parseFloat(gymData.location.longitude)
+      );
+    }
+
     await updateDoc(gymDoc, {
-      ...gymData,
+      ...processedGymData,
       updatedAt: new Date(),
     });
     return true;

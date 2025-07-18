@@ -266,7 +266,6 @@ export default function GymOperations() {
         location: {
           latitude: parseFloat(formData.location.latitude),
           longitude: parseFloat(formData.location.longitude),
-          type: "firestore/geoPoint/1.0",
         },
         capacity: parseInt(formData.capacity) || 0,
         "occupancy ": parseInt(formData.occupancy) || 0,
