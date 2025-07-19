@@ -8,6 +8,8 @@ import {
   orderBy,
   limit,
   where,
+  updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 
 // Tüm kullanıcıları getir
@@ -106,6 +108,33 @@ export const getUserByEmail = async (email) => {
     }
   } catch (error) {
     console.error("Email ile kullanıcı aranırken hata:", error);
+    throw error;
+  }
+};
+
+// Kullanıcı güncelle
+export const updateUser = async (userId, userData) => {
+  try {
+    const userDoc = doc(db, "users", userId);
+    await updateDoc(userDoc, {
+      ...userData,
+      updatedAt: new Date().toISOString(),
+    });
+    return { success: true, message: "Kullanıcı başarıyla güncellendi" };
+  } catch (error) {
+    console.error("Kullanıcı güncellenirken hata:", error);
+    throw error;
+  }
+};
+
+// Kullanıcı sil
+export const deleteUser = async (userId) => {
+  try {
+    const userDoc = doc(db, "users", userId);
+    await deleteDoc(userDoc);
+    return { success: true, message: "Kullanıcı başarıyla silindi" };
+  } catch (error) {
+    console.error("Kullanıcı silinirken hata:", error);
     throw error;
   }
 };

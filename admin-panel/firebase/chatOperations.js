@@ -74,8 +74,31 @@ export const getUserChatHistory = async (userId) => {
             typeof data.createdAt === "number"
           ) {
             // String veya number timestamp
-            const date = new Date(data.createdAt);
+            let timestamp = parseFloat(data.createdAt);
+
+            console.log(
+              "Debug - Chat createdAt orijinal timestamp:",
+              timestamp
+            );
+
+            // Eğer timestamp sayısı 1e12'den küçükse saniye cinsinden, büyükse milisaniye cinsinden
+            if (timestamp < 1e12) {
+              timestamp = timestamp * 1000; // Saniyeyi milisaniyeye çevir
+              console.log(
+                "Debug - Chat createdAt saniye olarak algılandı, milisaniyeye çevrildi:",
+                timestamp
+              );
+            } else {
+              console.log(
+                "Debug - Chat createdAt milisaniye olarak algılandı:",
+                timestamp
+              );
+            }
+
+            const date = new Date(timestamp);
             formattedDate = date.toLocaleString("tr-TR");
+
+            console.log("Debug - Chat createdAt sonuç tarihi:", formattedDate);
           }
         } catch (error) {
           console.error("Tarih formatlanırken hata:", error);
@@ -199,13 +222,24 @@ export const getChatMessages = async (userId, chatId) => {
           // ts'nin saniye mi milisaniye mi olduğunu kontrol et
           let timestamp = data.ts;
 
-          // Eğer timestamp 10 basamaklıysa saniye, 13 basamaklıysa milisaniye
-          if (timestamp.toString().length === 10) {
+          console.log("Debug - Orijinal timestamp:", timestamp);
+
+          // Eğer timestamp sayısı 1e12'den küçükse saniye cinsinden, büyükse milisaniye cinsinden
+          // 1e12 = 1,000,000,000,000 (1 trilyon) - 2001 yılı civarında saniye/milisaniye ayrımı için
+          if (timestamp < 1e12) {
             timestamp = timestamp * 1000; // Saniyeyi milisaniyeye çevir
+            console.log(
+              "Debug - Saniye olarak algılandı, milisaniyeye çevrildi:",
+              timestamp
+            );
+          } else {
+            console.log("Debug - Milisaniye olarak algılandı:", timestamp);
           }
 
           const date = new Date(timestamp);
           formattedDate = date.toLocaleString("tr-TR");
+
+          console.log("Debug - Sonuç tarihi:", formattedDate);
         } catch (error) {
           console.error("Mesaj tarihi formatlanırken hata:", error);
         }

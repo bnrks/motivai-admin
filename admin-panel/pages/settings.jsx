@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Globe, Save, Edit, Bot, Plus, X } from "lucide-react";
+import { Globe, Save, Edit, Bot, Plus, X, RefreshCw } from "lucide-react";
 import {
   getApiUrl,
   updateApiUrl,
@@ -29,12 +29,22 @@ export default function SettingsPage() {
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelsError, setModelsError] = useState(null);
   const [modelsSuccess, setModelsSuccess] = useState(false);
+  const [refreshLoading, setRefreshLoading] = useState(false);
+
+  // Tüm verileri yeniden yükle
+  const fetchAllData = async () => {
+    setRefreshLoading(true);
+    try {
+      await Promise.all([fetchApiUrl(), fetchModels()]);
+    } catch (error) {
+      console.error("Veriler yüklenirken hata:", error);
+    } finally {
+      setRefreshLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      await Promise.all([fetchApiUrl(), fetchModels()]);
-    };
-    fetchData();
+    fetchAllData();
   }, []);
 
   const fetchApiUrl = async () => {
@@ -186,6 +196,21 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Sistem Ayarları</h1>
+        <button
+          onClick={fetchAllData}
+          disabled={refreshLoading}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+            refreshLoading
+              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+              : "bg-purple-600 text-white hover:bg-purple-700"
+          }`}
+          title="Tüm Ayarları Yenile"
+        >
+          <RefreshCw
+            className={`h-4 w-4 ${refreshLoading ? "animate-spin" : ""}`}
+          />
+          <span>{refreshLoading ? "Yenileniyor..." : "Yenile"}</span>
+        </button>
       </div>
 
       {/* API URL Ayarı */}

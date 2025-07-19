@@ -225,7 +225,12 @@ export default function ChatDetailModal({
                           <span className="text-gray-500">Timestamp:</span>
                           <div className="font-medium">
                             {message.ts ? (
-                              message.ts
+                              <>
+                                <div>{message.formattedDate}</div>
+                                <div className="text-xs text-gray-400 mt-1">
+                                  Raw: {message.ts}
+                                </div>
+                              </>
                             ) : (
                               <span className="text-gray-400">Bulunamadı</span>
                             )}

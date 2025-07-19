@@ -9,6 +9,7 @@ import {
   Plus,
   Edit2,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
@@ -341,13 +342,28 @@ export default function GymOperations() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Gym İşlemleri</h1>
-        <button
-          onClick={openAddModal}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Yeni Salon</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={fetchGyms}
+            disabled={loading}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+              loading
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-green-600 text-white hover:bg-green-700"
+            }`}
+            title="Verileri Yenile"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            <span>{loading ? "Yenileniyor..." : "Yenile"}</span>
+          </button>
+          <button
+            onClick={openAddModal}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Yeni Salon</span>
+          </button>
+        </div>
       </div>
 
       {/* Spor Salonları Listesi */}
